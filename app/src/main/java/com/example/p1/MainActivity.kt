@@ -1,5 +1,12 @@
 package com.example.p1
 
+import androidx.compose.ui.unit.sp
+
+import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -9,12 +16,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
-
 import com.example.p1.ui.theme.P1Theme
 
 class MainActivity : ComponentActivity() {
@@ -22,110 +23,69 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             P1Theme {
-                aplikacja()
+                // Uruchomienie Composable odpowiedzialnego za odczyt i wyświetlanie danych z sensora
+                SensorDataDisplay(context = this)
             }
         }
     }
 }
 
 @Composable
-fun aplikacja() {
-    val navController = rememberNavController()
+fun SensorDataDisplay(context: Context) {
+    // Stan przechowujący dane z sensora (domyślnie ustawiony na "Brak danych")
+    var sensorData by remember { mutableStateOf("Brak danych") }
 
-    NavHost(
-        navController = navController,
-        startDestination = "screen1" // Startujemy od ekranu 1
-    ) {
-        composable("screen1") {
-            startscreen(onNavigate = {
-                navController.navigate("screen2") // Przejście do ekranu 2
-            })
+    // Pobieramy dostęp do systemowego SensorManager
+    val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+
+    // Pobieramy sensor typu akcelerometr
+    val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
+    // Obsługa zasobów i nasłuchiwania sensora
+    DisposableEffect(Unit) {
+        // Tworzymy listener nasłuchujący zmiany danych z sensora
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent?) {
+                if (event != null) {
+                    // Aktualizujemy stan danymi z akcelerometru (osie X, Y, Z)
+                    sensorData = "X: ${event.values[0]} Y: ${event.values[1]} Z: ${event.values[2]}"
+                }
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+                // Obsługa zmian dokładności sensora (opcjonalnie)
+            }
         }
-        composable("screen2") {
-            edycjatekstu(onNextClick = { inputText ->
-                navController.navigate("display/$inputText") // Przejście do ekranu wyświetlania
-            })
-        }
-        composable(
-            "display/{text}",
-            arguments = listOf(navArgument("text") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val text = backStackEntry.arguments?.getString("text").orEmpty() // Pobieramy tekst z argumentów
-            wyswietl(
-                text = text,
-                onBackClick = { navController.popBackStack() } // Powrót do poprzedniego ekranu
-            )
+
+        // Rejestrujemy listener, aby odbierać dane z sensora
+        sensorManager.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_UI)
+
+        // Funkcja czyszcząca zasoby po zakończeniu działania
+        onDispose {
+            sensorManager.unregisterListener(listener)
         }
     }
-}
 
-@Composable
-fun startscreen(onNavigate: () -> Unit) {
+    // Interfejs użytkownika wyświetlający dane z sensora
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .padding(16.dp),  // Odstęp od krawędzi ekranu
+        horizontalAlignment = Alignment.CenterHorizontally,  // Wyrównanie do środka w poziomie
+        verticalArrangement = Arrangement.Center  // Wyrównanie do środka w pionie
     ) {
+        // Wyświetlenie etykiety informacyjnej
         Text(
-            text = "Witaj! Rozpocznij swoją przygodę."
+            text = "Dane z akcelerometru:",
+            fontSize = MaterialTheme.typography.headlineMedium.fontSize // Ustawienie większego rozmiaru tekstu
         )
-        Spacer(modifier = Modifier.height(16.dp))
-        OutlinedButton(onClick = onNavigate) {
-            Text("Idź do ekranu z wpisywaniem tekstu")
-        }
-    }
-}
 
-@Composable
-fun edycjatekstu(onNextClick: (String) -> Unit) {
-    var text by remember { mutableStateOf("") }
+        Spacer(modifier = Modifier.height(16.dp))  // Odstęp między elementami
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+        // Wyświetlenie odczytanych danych z sensora
         Text(
-            text = "Proszę, wpisz swój tekst:",
-            style = MaterialTheme.typography.bodyLarge
+            text = sensorData,
+            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 24.sp) // Zwiększenie rozmiaru do 24 sp
         )
-        Spacer(modifier = Modifier.height(16.dp))
-        OutlinedTextField(
-            value = text,
-            onValueChange = { newText -> text = newText },
-            label = { Text("Twój tekst") }, // Dodano etykietę
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        OutlinedButton(onClick = { onNextClick(text) }) {
-            Text("Przejdź do ekranu wyświetlającego tekst")
-        }
-    }
-}
-
-@Composable
-fun wyswietl(text: String, onBackClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "Wprowadziłeś tekst:"
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = text
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        OutlinedButton(onClick = onBackClick) {
-            Text("Wróć do poprzedniego ekranu")
-        }
     }
 }
